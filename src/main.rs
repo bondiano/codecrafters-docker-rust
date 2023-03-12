@@ -24,7 +24,8 @@ fn main() -> Result<()> {
         std::io::stdout().write_all(std_out.as_bytes())?;
         std::io::stderr().write_all(std_err.as_bytes())?;
     } else {
-        std::process::exit(1);
+        let exit_code = output.status.code().unwrap_or(1);
+        std::process::exit(exit_code);
     }
 
     Ok(())
