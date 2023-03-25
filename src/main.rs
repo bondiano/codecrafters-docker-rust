@@ -1,3 +1,5 @@
+#[cfg(target_os = "linux")]
+use libc;
 use std::env::{args, set_current_dir};
 use std::fs::{copy, create_dir, create_dir_all, set_permissions, File, Permissions};
 use std::os::unix::fs::{chroot, PermissionsExt};
@@ -27,6 +29,11 @@ fn run_command(command: &String, command_args: &[String]) -> Result<i32> {
 
     set_current_dir("/")?;
 
+    #[cfg(target_os = "linux")]
+    unsafe {
+        libc::unshare(libc::CLONE_NEWPID)
+    };
+
     let mut command = Command::new(command)
         .args(command_args)
         .stdin(Stdio::null())
@@ -37,6 +44,7 @@ fn run_command(command: &String, command_args: &[String]) -> Result<i32> {
                 command, command_args
             )
         })?;
+
     Ok(command.wait()?.code().unwrap_or(1))
 }
 
@@ -56,7 +64,10 @@ fn create_dev_null(temp_dir: &TempDir) -> Result<()> {
     set_permissions(temp_dir.path().join("dev"), Permissions::from_mode(0o555))?;
 
     File::create(temp_dir.path().join("dev/null"))?;
-    set_permissions(temp_dir.path().join("dev/null"), Permissions::from_mode(0o555))?;
+    set_permissions(
+        temp_dir.path().join("dev/null"),
+        Permissions::from_mode(0o555),
+    )?;
 
     Ok(())
 }
