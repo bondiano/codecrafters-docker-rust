@@ -1,5 +1,6 @@
 #[cfg(target_os = "linux")]
 use libc;
+use registry::RegistryClient;
 use std::env::{args, set_current_dir};
 use std::fs::{copy, create_dir, create_dir_all, set_permissions, File, Permissions};
 use std::os::unix::fs::{chroot, PermissionsExt};
@@ -8,22 +9,30 @@ use std::process::{exit, Command, Stdio};
 use anyhow::{Context, Result};
 use tempfile::TempDir;
 
-// Usage: your_docker.sh run <image> <command> <arg1> <arg2> ...
-fn main() -> Result<()> {
+mod registry;
+
+#[tokio::main]
+async fn main() -> Result<()> {
     let args: Vec<_> = args().collect();
+    let image = &args[2];
     let command = &args[3];
     let command_args = &args[4..];
 
-    let exit_code = run_command(command, command_args)?;
+    let exit_code = run_command(image, command, command_args).await?;
     exit(exit_code);
 }
 
-fn run_command(command: &String, command_args: &[String]) -> Result<i32> {
+async fn run_command(image: &String, command: &String, command_args: &[String]) -> Result<i32> {
     let temp_dir = tempfile::tempdir()?;
 
     copy_command(command, &temp_dir)?;
 
     create_dev_null(&temp_dir)?;
+
+    let mut registry_client = RegistryClient::new();
+    registry_client
+        .pull(image, temp_dir.path().to_str().unwrap())
+        .await?;
 
     chroot(temp_dir.path())?;
 
